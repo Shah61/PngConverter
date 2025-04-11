@@ -1,6 +1,6 @@
 import React from "react";
 import { Info } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
+import { Separator } from "@/app/components/ui/separator";
 import QualitySettings from "./QualitySettings";
 import ResizeSettings from "./ResizeSettings";
 import Toggle from "../ui/Toggle";

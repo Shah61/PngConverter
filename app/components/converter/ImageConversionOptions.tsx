@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Image, FileImage, FileArchive } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/app/components/ui/badge';
 
 interface ImageConversionOptionsProps {
   activeFormat: string;

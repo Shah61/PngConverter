@@ -1,6 +1,6 @@
 import React from "react";
-import { Slider } from "@/components/ui/slider";
-import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/app/components/ui/slider";
+import { Badge } from "@/app/components/ui/badge";
 
 interface QualitySettingsProps {
   quality: number;

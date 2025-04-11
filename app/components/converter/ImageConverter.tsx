@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
+import { Card, CardContent } from "@/app/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
+import { Button } from "@/app/components/ui/button";
+import { Input } from "@/app/components/ui/input";
+import { Label } from "@/app/components/ui/label";
+import { Slider } from "@/app/components/ui/slider";
+import { Switch } from "@/app/components/ui/switch";
 import { motion, AnimatePresence } from "framer-motion";
 import { ImageIcon, Download, Settings, FileImage, FileArchive } from "lucide-react";
 import UploadTab from "./UploadTab";

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { FileArchive, CheckCircle, XCircle, FileImage, FileText, File } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Separator } from '@/components/ui/separator';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Button } from '@/app/components/ui/button';
+import { Badge } from '@/app/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/app/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/app/components/ui/alert';
+import { Separator } from '@/app/components/ui/separator';
+import { Checkbox } from '@/app/components/ui/checkbox';
 import { motion } from 'framer-motion';
 import { formatFileSize } from '../utils/imageUtils';
 import JSZip from 'jszip';

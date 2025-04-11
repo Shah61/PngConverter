@@ -1,10 +1,10 @@
 "use client";
 
 import React from "react";
-import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import { Button } from "@/app/components/ui/button";
+import { Slider } from "@/app/components/ui/slider";
+import { Switch } from "@/app/components/ui/switch";
+import { Label } from "@/app/components/ui/label";
 import { motion } from "framer-motion";
 import { Image, Settings2 } from "lucide-react";
 
