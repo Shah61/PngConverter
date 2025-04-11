@@ -1,7 +1,7 @@
 "use client";
 
-import React from "react";
-import { ImageIcon, AlertCircle, Upload, ArrowLeft, ArrowRight, Check, Image as LucideImage, Download, Info, ChevronLeft, ChevronRight, FileArchive } from "lucide-react";
+import React, { useState } from "react";
+import { ImageIcon, AlertCircle, Upload, ArrowLeft, ArrowRight, Check, Image as LucideImage, Download, Info, ChevronLeft, ChevronRight, FileArchive, Image } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert";
 import { Card, CardContent } from "@/app/components/ui/card";
@@ -19,25 +19,52 @@ import { ResizeControls } from "./converter/ResizeControls";
 import { QualityControls } from "./converter/QualityControls";
 import { useImageConverter } from "./hooks/useImageConverter";
 import { formatFileSize } from "./utils/imageUtils";
+import { StatCard } from "./ui/StatCard";
+import { ProBadge } from "./ui/ProBadge";
+import { WatermarkTool } from "./premium/WatermarkTool";
+import { PresetManager } from "./premium/PresetManager";
+
+// Define the ConversionStats type
+type ConversionStats = {
+  originalSize: number;
+  convertedSize: number;
+  reduction: number;
+};
+
+// Define the ConvertedFile type
+type ConvertedFile = {
+  file: File;
+  convertedUrl: string;
+  stats: ConversionStats;
+};
 
 export default function PngToJpgConverter() {
+  const [activeTab, setActiveTab] = useState("upload");
+  const [showBeforeAfter, setShowBeforeAfter] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [currentFileIndex, setCurrentFileIndex] = useState(0);
+  const [convertedUrl, setConvertedUrl] = useState<string | null>(null);
+  const [conversionStats, setConversionStats] = useState<ConversionStats | null>(null);
+  const [originalDimensions, setOriginalDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [convertedFiles, setConvertedFiles] = useState<ConvertedFile[]>([]);
+  const [zipFile, setZipFile] = useState<File | null>(null);
+  const [analyzingZip, setAnalyzingZip] = useState(false);
+  const [activeConversionType, setActiveConversionType] = useState('image');
+  const [activeImageFormat, setActiveImageFormat] = useState('png-to-jpg');
+  const [isLoading, setIsLoading] = useState(false);
+
   const {
-    selectedFiles,
-    currentFileIndex,
     previewUrl,
-    convertedUrl,
-    isLoading,
     error,
     quality,
-    conversionStats,
+    conversionStats: hookConversionStats,
     resizeEnabled,
     resizeWidth,
     resizeHeight,
     maintainAspectRatio,
-    originalDimensions,
     customFilename,
     preserveMetadata,
-    convertedFiles,
     setQuality,
     setResizeEnabled,
     setResizeWidth,
@@ -45,32 +72,185 @@ export default function PngToJpgConverter() {
     setMaintainAspectRatio,
     setCustomFilename,
     setPreserveMetadata,
-    handleFileChange,
     handleConvert,
     handleDownload,
     loadPreview,
-    setCurrentFileIndex,
-    setError,
-    setSelectedFiles
-  } = useImageConverter();
-
-  const [activeTab, setActiveTab] = React.useState("upload");
-  const [showBeforeAfter, setShowBeforeAfter] = React.useState(false);
-  const [isDragOver, setIsDragOver] = React.useState(false);
-  const [zipFile, setZipFile] = React.useState<File | null>(null);
-  const [analyzingZip, setAnalyzingZip] = React.useState(false);
-  const [activeConversionType, setActiveConversionType] = React.useState('image');
-  const [activeImageFormat, setActiveImageFormat] = React.useState('png-to-jpg');
+    setError
+  } = useImageConverter(setActiveTab);
 
   const selectedFile = selectedFiles[currentFileIndex] || null;
 
+  // Function to check if a file is a ZIP file
+  const isZipFile = (file: File): boolean => {
+    return file.type === 'application/zip' || 
+           file.type === 'application/x-zip-compressed' || 
+           file.name.toLowerCase().endsWith('.zip');
+  };
+
+  // Handle selected files from ZIP analyzer
+  const handleZipFileSelection = (extractedFiles: File[]) => {
+    setZipFile(null);
+    setAnalyzingZip(false);
+    
+    if (extractedFiles.length === 0) {
+      setError("No valid files were selected from the ZIP archive.");
+      return;
+    }
+
+    // Reset states
+    setError(null);
+    setConvertedUrl(null);
+    setConversionStats(null);
+    setOriginalDimensions(null);
+    setConvertedFiles([]);
+    
+    setSelectedFiles(extractedFiles);
+    setCurrentFileIndex(0);
+    loadPreview(extractedFiles[0]);
+    
+    // Auto-switch to preview tab
+    setActiveTab("preview");
+  };
+
+  // Cancel ZIP analysis
+  const handleCancelZipAnalysis = () => {
+    setZipFile(null);
+    setAnalyzingZip(false);
+  };
+
+  const processFile = async (file: File): Promise<boolean> => {
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('quality', quality.toString());
+      formData.append('preserve_metadata', preserveMetadata.toString());
+      
+      if (resizeEnabled) {
+        formData.append('resize', 'true');
+        formData.append('width', resizeWidth.toString());
+        formData.append('height', resizeHeight.toString());
+      }
+      
+      const response = await fetch('http://127.0.0.1:5002/api/convert', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Conversion failed');
+      }
+      
+      const data = await response.json();
+      const convertedImageUrl = `http://localhost:5002${data.jpgUrl}`;
+      setConvertedUrl(convertedImageUrl);
+      
+      const originalSize = file.size;
+      const imageResponse = await fetch(convertedImageUrl);
+      const blob = await imageResponse.blob();
+      const convertedSize = blob.size;
+      
+      const reduction = ((originalSize - convertedSize) / originalSize) * 100;
+      
+      const stats = {
+        originalSize,
+        convertedSize,
+        reduction
+      };
+      
+      setConversionStats(stats);
+      
+      setConvertedFiles(prev => [
+        ...prev,
+        {
+          file,
+          convertedUrl: convertedImageUrl,
+          stats
+        }
+      ]);
+      
+      return true;
+    } catch (err) {
+      setError(`Error processing ${file.name}: ${err instanceof Error ? err.message : 'Unknown error occurred'}`);
+      return false;
+    }
+  };
+
+  const handleFileChange = (files: File[]) => {
+    if (files.length === 0) {
+      return;
+    }
+    
+    console.log("Selected files:", files.length);
+    
+    // Check if we have a ZIP file
+    const zipFiles = files.filter(file => isZipFile(file));
+    if (zipFiles.length > 0) {
+      // If multiple files were selected but one is a ZIP, prioritize the ZIP
+      if (files.length > 1) {
+        console.log("Multiple files selected including ZIP. Prioritizing ZIP file.");
+      }
+      
+      // Process the first ZIP file
+      setZipFile(zipFiles[0]);
+      setAnalyzingZip(true);
+      setActiveTab("upload"); // Keep on upload tab while analyzing
+      return;
+    }
+    
+    // Otherwise, handle as regular files
+    setError(null);
+    setConvertedUrl(null);
+    setConversionStats(null);
+    setOriginalDimensions(null);
+    setConvertedFiles([]);
+    
+    setSelectedFiles(files);
+    setCurrentFileIndex(0);
+    loadPreview(files[0]);
+    
+    // Auto-switch to preview tab
+    setActiveTab("preview");
+  };
+
+  // Handle file drop
   const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
     setIsDragOver(false);
     
     const files = Array.from(event.dataTransfer.files || []);
-    handleFileChange(files);
+    console.log("Dropped files:", files.length);
+    
+    if (files.length === 0) return;
+    
+    // Check if we have a ZIP file
+    const zipFiles = files.filter(file => isZipFile(file));
+    if (zipFiles.length > 0) {
+      // If multiple files were dropped but one is a ZIP, prioritize the ZIP
+      if (files.length > 1) {
+        console.log("Multiple files dropped including ZIP. Prioritizing ZIP file.");
+      }
+      
+      // Process the first ZIP file
+      setZipFile(zipFiles[0]);
+      setAnalyzingZip(true);
+      return;
+    }
+    
+    // Otherwise, handle as regular files
+    setError(null);
+    setConvertedUrl(null);
+    setConversionStats(null);
+    setOriginalDimensions(null);
+    setConvertedFiles([]);
+    
+    setSelectedFiles(files);
+    setCurrentFileIndex(0);
+    loadPreview(files[0]);
+    
+    // Auto-switch to preview tab
+    setActiveTab("preview");
   };
 
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
@@ -116,6 +296,36 @@ export default function PngToJpgConverter() {
       y: 0, 
       opacity: 1,
       transition: { type: "spring", stiffness: 300, damping: 24 }
+    }
+  };
+
+  const handleClearAll = () => {
+    setSelectedFiles([]);
+    setCurrentFileIndex(0);
+    setError(null);
+    setConvertedUrl(null);
+    setConversionStats(null);
+    setOriginalDimensions(null);
+    setConvertedFiles([]);
+  };
+
+  const handleBatchConvert = async () => {
+    if (selectedFiles.length === 0) return;
+    
+    setIsLoading(true);
+    setError(null);
+    setConvertedFiles([]);
+    
+    try {
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const success = await processFile(selectedFiles[i]);
+        if (!success) {
+          setError(`Failed to convert ${selectedFiles[i].name}`);
+          break;
+        }
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -190,78 +400,15 @@ export default function PngToJpgConverter() {
                       {analyzingZip && zipFile ? (
                         <ZipAnalyzer 
                           zipFile={zipFile} 
-                          onSelect={handleFileChange} 
-                          onCancel={() => {
-                            setZipFile(null);
-                            setAnalyzingZip(false);
-                          }} 
+                          onSelect={handleZipFileSelection} 
+                          onCancel={handleCancelZipAnalysis} 
                         />
                       ) : (
-                        <div 
-                          className={`border-2 border-dashed rounded-xl p-10 text-center transition-all duration-300 ${
-                            isDragOver 
-                              ? 'border-indigo-400 bg-indigo-50 scale-[1.01]' 
-                              : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
-                          }`}
-                          onDrop={handleDrop}
-                          onDragOver={handleDragOver}
-                          onDragLeave={handleDragLeave}
-                        >
-                          <motion.div 
-                            className="flex flex-col items-center justify-center space-y-6"
-                            variants={containerVariants}
-                            initial="hidden"
-                            animate="visible"
-                          >
-                            <motion.div 
-                              variants={itemVariants}
-                              className={`relative p-6 rounded-full ${isDragOver ? 'bg-indigo-100 text-indigo-600' : 'bg-indigo-50 text-indigo-500'} transition-colors duration-300`}
-                            >
-                              <Upload size={42} />
-                              {isDragOver && (
-                                <motion.div 
-                                  className="absolute inset-0 rounded-full border-4 border-indigo-400"
-                                  initial={{ scale: 0.8, opacity: 0 }}
-                                  animate={{ scale: 1.2, opacity: 0 }}
-                                  transition={{ duration: 1.5, repeat: Infinity }}
-                                />
-                              )}
-                            </motion.div>
-                            
-                            <motion.div variants={itemVariants}>
-                              <h3 className="text-2xl font-bold text-slate-800">Drag & drop your PNG files here</h3>
-                              <p className="text-slate-500 mt-2">or click to browse files</p>
-                            </motion.div>
-                            
-                            <motion.div variants={itemVariants}>
-                              <Button 
-                                onClick={() => document.getElementById('file-input')?.click()}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-6 h-auto text-lg font-medium shadow-lg shadow-indigo-200 hover:shadow-xl hover:shadow-indigo-200 transition-all duration-300"
-                                size="lg"
-                              >
-                                <Upload size={20} className="mr-2" />
-                                Select PNG Files
-                              </Button>
-                              <input
-                                id="file-input"
-                                type="file"
-                                onChange={(e) => handleFileChange(Array.from(e.target.files || []))}
-                                className="hidden"
-                                accept=".png,.zip,application/zip,application/x-zip-compressed"
-                                multiple={true}
-                              />
-                            </motion.div>
-                            
-                            <motion.div variants={itemVariants} className="flex gap-2 items-center">
-                              <Badge variant="outline" className="px-3 py-1.5 text-sm bg-white">
-                                PNG files only
-                              </Badge>
-                              <Badge variant="outline" className="px-3 py-1.5 text-sm bg-white">
-                                Batch processing supported
-                              </Badge>
-                            </motion.div>
-                          </motion.div>
-                        </div>
+                        <UploadTab
+                          onFilesSelected={handleFileChange}
+                          isDragOver={isDragOver}
+                          setIsDragOver={setIsDragOver}
+                        />
                       )}
                     </motion.div>
                   )}
@@ -273,94 +420,31 @@ export default function PngToJpgConverter() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -20 }}
                       transition={{ duration: 0.4, ease: "easeInOut" }}
-                      className="space-y-6"
                     >
-                      <div className="aspect-video bg-slate-50 rounded-xl overflow-hidden border flex items-center justify-center relative">
-                        <img 
-                          src={previewUrl} 
-                          alt="Preview" 
-                          className="max-w-full max-h-full object-contain"
-                        />
-                        {originalDimensions && (
-                          <div className="absolute bottom-3 right-3 bg-black/70 text-white text-sm px-3 py-1.5 rounded-full backdrop-blur-sm">
-                            {originalDimensions.width} × {originalDimensions.height} px
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="grid lg:grid-cols-2 gap-6">
-                        <div className="bg-slate-50 rounded-xl p-5 border">
-                          <h3 className="font-semibold text-lg text-slate-800 mb-3">File Details</h3>
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                              <span className="text-slate-500">File name:</span>
-                              <span className="font-medium text-slate-800 truncate max-w-[200px]">{selectedFile.name}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-slate-500">File size:</span>
-                              <span className="font-medium text-slate-800">{formatFileSize(selectedFile.size)}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-slate-500">File type:</span>
-                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                {selectedFile.type}
-                              </Badge>
-                            </div>
-                            {originalDimensions && (
-                              <div className="flex justify-between items-center">
-                                <span className="text-slate-500">Dimensions:</span>
-                                <span className="font-medium text-slate-800">
-                                  {originalDimensions.width} × {originalDimensions.height}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <QualityControls quality={quality} setQuality={setQuality} />
-                      </div>
-                      
-                      <ResizeControls
-                        resizeEnabled={resizeEnabled}
-                        setResizeEnabled={setResizeEnabled}
-                        resizeWidth={resizeWidth}
-                        setResizeWidth={setResizeWidth}
-                        resizeHeight={resizeHeight}
-                        setResizeHeight={setResizeHeight}
-                        maintainAspectRatio={maintainAspectRatio}
-                        setMaintainAspectRatio={setMaintainAspectRatio}
-                        originalDimensions={originalDimensions}
+                      <PreviewTab
+                        selectedFiles={selectedFiles}
+                        currentFileIndex={currentFileIndex}
+                        quality={quality}
+                        setQuality={setQuality}
+                        preserveTransparency={false}
+                        setPreserveTransparency={() => {}}
+                        onConvert={handleConvert}
+                        onFileClick={(index) => {
+                          setCurrentFileIndex(index);
+                          loadPreview(selectedFiles[index]);
+                        }}
+                        onRemoveFile={(index) => {
+                          setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+                          if (currentFileIndex === index) {
+                            setCurrentFileIndex(0);
+                          } else if (currentFileIndex > index) {
+                            setCurrentFileIndex(prev => prev - 1);
+                          }
+                        }}
+                        onClearAll={handleClearAll}
+                        onBatchConvert={handleBatchConvert}
+                        isConverting={isLoading}
                       />
-                      
-                      <div className="flex justify-between gap-4 mt-8">
-                        <Button 
-                          variant="outline"
-                          size="lg"
-                          onClick={() => setActiveTab("upload")}
-                          className="px-6"
-                        >
-                          <ArrowLeft size={18} className="mr-2" />
-                          Back
-                        </Button>
-                        <Button 
-                          onClick={handleConvert} 
-                          disabled={isLoading} 
-                          size="lg"
-                          className="bg-indigo-600 hover:bg-indigo-700 flex-1 text-white shadow-lg shadow-indigo-200 hover:shadow-xl hover:shadow-indigo-200 transition-all duration-300"
-                        >
-                          {isLoading ? (
-                            <>
-                              <span className="mr-2">Converting</span>
-                              <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            </>
-                          ) : (
-                            <>
-                              Convert to JPG
-                              <ArrowRight size={18} className="ml-2" />
-                            </>
-                          )}
-                        </Button>
-                      </div>
                     </motion.div>
                   )}
 
@@ -392,6 +476,33 @@ export default function PngToJpgConverter() {
               </CardContent>
             </Tabs>
           </div>
+          <WatermarkTool
+            onApplyWatermark={(settings) => {
+              // Handle watermark settings
+              console.log(settings);
+            }}
+          />
+          <PresetManager
+            onApplyPreset={(preset) => {
+              // Handle applying a preset
+              console.log('Applying preset:', preset);
+            }}
+            onSavePreset={(preset) => {
+              // Handle saving a new preset
+              console.log('Saving preset:', preset);
+            }}
+            onDeletePreset={(presetId) => {
+              // Handle deleting a preset
+              console.log('Deleting preset:', presetId);
+            }}
+            currentSettings={{
+              quality: 90,
+              resizeEnabled: false,
+              resizeWidth: 800,
+              resizeHeight: 600,
+              preserveMetadata: true
+            }}
+          />
         </>
       ) : (
         <div className="p-8 text-center">

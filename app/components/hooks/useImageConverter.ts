@@ -13,7 +13,7 @@ export interface ConvertedFile {
   stats: ConversionStats;
 }
 
-export const useImageConverter = () => {
+export const useImageConverter = (setActiveTab?: (tab: string) => void) => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [currentFileIndex, setCurrentFileIndex] = useState<number>(0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -54,25 +54,23 @@ export const useImageConverter = () => {
   };
 
   const handleFileChange = (files: File[]) => {
-    const pngFiles = files.filter(file => isPngFile(file));
-    
-    if (pngFiles.length === 0) {
-      setError("Only PNG files are supported.");
-      setSelectedFiles([]);
-      setPreviewUrl(null);
-      setCustomFilename("");
-      return;
-    }
-    
+    // Remove PNG filter and allow all files
     setError(null);
     setConvertedUrl(null);
     setConversionStats(null);
     setOriginalDimensions(null);
     setConvertedFiles([]);
     
-    setSelectedFiles(pngFiles);
+    setSelectedFiles(files);
     setCurrentFileIndex(0);
-    loadPreview(pngFiles[0]);
+    if (files.length > 0) {
+      loadPreview(files[0]);
+    }
+    
+    // Switch to preview tab if files are selected
+    if (setActiveTab) {
+      setActiveTab("preview");
+    }
   };
 
   const processFile = async (file: File): Promise<boolean> => {
@@ -146,6 +144,26 @@ export const useImageConverter = () => {
     return success;
   };
 
+  const handleBatchConvert = async () => {
+    if (selectedFiles.length === 0) return;
+    
+    setIsLoading(true);
+    setError(null);
+    setConvertedFiles([]);
+    
+    try {
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const success = await processFile(selectedFiles[i]);
+        if (!success) {
+          setError(`Failed to convert ${selectedFiles[i].name}`);
+          break;
+        }
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleDownload = async () => {
     if (!convertedUrl) return;
     
@@ -196,6 +214,7 @@ export const useImageConverter = () => {
     setPreserveMetadata,
     handleFileChange,
     handleConvert,
+    handleBatchConvert,
     handleDownload,
     loadPreview,
     setCurrentFileIndex,

@@ -51,10 +51,9 @@ const ZipAnalyzer: React.FC<ZipAnalyzerProps> = ({ zipFile, onSelect, onCancel }
   const [selectAll, setSelectAll] = useState(true);
   const [filter, setFilter] = useState<'all' | 'supported' | 'unsupported'>('all');
 
-  // Check if a file type is supported (only PNG is fully supported in this app)
+  // Check if a file type is supported (all files are supported now)
   const isSupported = (filename: string): boolean => {
-    const ext = filename.split('.').pop()?.toLowerCase() || '';
-    return ext === 'png';
+    return true; // All files are supported now
   };
 
   // Get the MIME type from filename
@@ -478,16 +477,6 @@ const ZipAnalyzer: React.FC<ZipAnalyzerProps> = ({ zipFile, onSelect, onCancel }
               </tbody>
             </table>
           </div>
-
-          {/* Info Alert */}
-          <Alert className="bg-blue-50 border-blue-100">
-            <AlertTitle className="text-blue-800">
-              Only PNG files are fully supported
-            </AlertTitle>
-            <AlertDescription className="text-blue-700">
-              Other file formats in the ZIP archive were detected but can't be processed. Only select PNG files for conversion.
-            </AlertDescription>
-          </Alert>
         </CardContent>
 
         <CardFooter className="flex justify-between">
