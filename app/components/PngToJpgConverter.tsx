@@ -19,6 +19,7 @@ import { ResizeControls } from "./converter/ResizeControls";
 import { QualityControls } from "./converter/QualityControls";
 import { useImageConverter } from "./hooks/useImageConverter";
 import { formatFileSize } from "./utils/imageUtils";
+import { FileTypeDetector } from "./converter/FileTypeDetector";
 
 export default function PngToJpgConverter() {
   const {
@@ -61,6 +62,7 @@ export default function PngToJpgConverter() {
   const [analyzingZip, setAnalyzingZip] = React.useState(false);
   const [activeConversionType, setActiveConversionType] = React.useState('image');
   const [activeImageFormat, setActiveImageFormat] = React.useState('png-to-jpg');
+  const [showFileTypeDetector, setShowFileTypeDetector] = React.useState(false);
 
   const selectedFile = selectedFiles[currentFileIndex] || null;
 
@@ -71,6 +73,7 @@ export default function PngToJpgConverter() {
     
     const files = Array.from(event.dataTransfer.files || []);
     handleFileChange(files);
+    setShowFileTypeDetector(true);
   };
 
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
@@ -85,18 +88,18 @@ export default function PngToJpgConverter() {
     setIsDragOver(false);
   };
 
-  const goToNextFile = () => {
-    if (currentFileIndex < selectedFiles.length - 1) {
-      setCurrentFileIndex(currentFileIndex + 1);
-      loadPreview(selectedFiles[currentFileIndex + 1]);
-    }
+  const handleFormatSelect = (format: string) => {
+    setActiveImageFormat(`${getFileType(selectedFile)}-to-${format}`);
+    setShowFileTypeDetector(false);
+    setActiveTab("preview");
   };
 
-  const goToPrevFile = () => {
-    if (currentFileIndex > 0) {
-      setCurrentFileIndex(currentFileIndex - 1);
-      loadPreview(selectedFiles[currentFileIndex - 1]);
+  const getFileType = (file: File): string => {
+    const type = file.type.toLowerCase();
+    if (type.includes('image/')) {
+      return type.split('/')[1];
     }
+    return file.name.split('.').pop()?.toLowerCase() || 'unknown';
   };
 
   const containerVariants = {
@@ -126,10 +129,6 @@ export default function PngToJpgConverter() {
     >
       {activeConversionType === 'image' ? (
         <>
-          <ImageConversionOptions
-            activeFormat={activeImageFormat}
-            onFormatChange={setActiveImageFormat}
-          />
           <div className="border-t">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <div className="px-8 pt-6">
@@ -196,6 +195,12 @@ export default function PngToJpgConverter() {
                             setAnalyzingZip(false);
                           }} 
                         />
+                      ) : showFileTypeDetector && selectedFile ? (
+                        <FileTypeDetector
+                          file={selectedFile}
+                          onFormatSelect={handleFormatSelect}
+                          onCancel={() => setShowFileTypeDetector(false)}
+                        />
                       ) : (
                         <div 
                           className={`border-2 border-dashed rounded-xl p-10 text-center transition-all duration-300 ${
@@ -229,7 +234,7 @@ export default function PngToJpgConverter() {
                             </motion.div>
                             
                             <motion.div variants={itemVariants}>
-                              <h3 className="text-2xl font-bold text-slate-800">Drag & drop your PNG files here</h3>
+                              <h3 className="text-2xl font-bold text-slate-800">Drag & drop your files here</h3>
                               <p className="text-slate-500 mt-2">or click to browse files</p>
                             </motion.div>
                             
@@ -240,21 +245,25 @@ export default function PngToJpgConverter() {
                                 size="lg"
                               >
                                 <Upload size={20} className="mr-2" />
-                                Select PNG Files
+                                Select Files
                               </Button>
                               <input
                                 id="file-input"
                                 type="file"
-                                onChange={(e) => handleFileChange(Array.from(e.target.files || []))}
+                                onChange={(e) => {
+                                  const files = Array.from(e.target.files || []);
+                                  handleFileChange(files);
+                                  setShowFileTypeDetector(true);
+                                }}
                                 className="hidden"
-                                accept=".png,.zip,application/zip,application/x-zip-compressed"
+                                accept="*"
                                 multiple={true}
                               />
                             </motion.div>
                             
                             <motion.div variants={itemVariants} className="flex gap-2 items-center">
                               <Badge variant="outline" className="px-3 py-1.5 text-sm bg-white">
-                                PNG files only
+                                All file types supported
                               </Badge>
                               <Badge variant="outline" className="px-3 py-1.5 text-sm bg-white">
                                 Batch processing supported
@@ -355,7 +364,7 @@ export default function PngToJpgConverter() {
                             </>
                           ) : (
                             <>
-                              Convert to JPG
+                              Convert to {activeImageFormat.split('-to-')[1].toUpperCase()}
                               <ArrowRight size={18} className="ml-2" />
                             </>
                           )}

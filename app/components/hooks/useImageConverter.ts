@@ -42,37 +42,31 @@ export const useImageConverter = () => {
     const objectUrl = URL.createObjectURL(file);
     setPreviewUrl(objectUrl);
     
-    const img = document.createElement('img');
-    img.onload = () => {
-      setOriginalDimensions({width: img.width, height: img.height});
-      setResizeWidth(img.width);
-      setResizeHeight(img.height);
-    };
-    img.src = objectUrl;
+    if (file.type.startsWith('image/')) {
+      const img = document.createElement('img');
+      img.onload = () => {
+        setOriginalDimensions({width: img.width, height: img.height});
+        setResizeWidth(img.width);
+        setResizeHeight(img.height);
+      };
+      img.src = objectUrl;
+    }
     
     setCustomFilename(generateDefaultFilename(file.name));
   };
 
   const handleFileChange = (files: File[]) => {
-    const pngFiles = files.filter(file => isPngFile(file));
-    
-    if (pngFiles.length === 0) {
-      setError("Only PNG files are supported.");
-      setSelectedFiles([]);
-      setPreviewUrl(null);
-      setCustomFilename("");
-      return;
-    }
-    
     setError(null);
     setConvertedUrl(null);
     setConversionStats(null);
     setOriginalDimensions(null);
     setConvertedFiles([]);
     
-    setSelectedFiles(pngFiles);
+    setSelectedFiles(files);
     setCurrentFileIndex(0);
-    loadPreview(pngFiles[0]);
+    if (files.length > 0) {
+      loadPreview(files[0]);
+    }
   };
 
   const processFile = async (file: File): Promise<boolean> => {
