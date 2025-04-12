@@ -72,8 +72,15 @@ export default function PngToJpgConverter() {
     setIsDragOver(false);
     
     const files = Array.from(event.dataTransfer.files || []);
-    handleFileChange(files);
-    setShowFileTypeDetector(true);
+    const zipFiles = files.filter(file => file.name.toLowerCase().endsWith('.zip'));
+    
+    if (zipFiles.length > 0) {
+      setZipFile(zipFiles[0]);
+      setAnalyzingZip(true);
+    } else {
+      handleFileChange(files);
+      setActiveTab("preview");
+    }
   };
 
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
@@ -189,7 +196,12 @@ export default function PngToJpgConverter() {
                       {analyzingZip && zipFile ? (
                         <ZipAnalyzer 
                           zipFile={zipFile} 
-                          onSelect={handleFileChange} 
+                          onSelect={(files) => {
+                            handleFileChange(files);
+                            setAnalyzingZip(false);
+                            setZipFile(null);
+                            setActiveTab("preview");
+                          }} 
                           onCancel={() => {
                             setZipFile(null);
                             setAnalyzingZip(false);
@@ -252,8 +264,15 @@ export default function PngToJpgConverter() {
                                 type="file"
                                 onChange={(e) => {
                                   const files = Array.from(e.target.files || []);
-                                  handleFileChange(files);
-                                  setShowFileTypeDetector(true);
+                                  const zipFiles = files.filter(file => file.name.toLowerCase().endsWith('.zip'));
+                                  
+                                  if (zipFiles.length > 0) {
+                                    setZipFile(zipFiles[0]);
+                                    setAnalyzingZip(true);
+                                  } else {
+                                    handleFileChange(files);
+                                    setActiveTab("preview");
+                                  }
                                 }}
                                 className="hidden"
                                 accept="*"
@@ -276,101 +295,41 @@ export default function PngToJpgConverter() {
                   )}
 
                   {activeTab === "preview" && selectedFile && previewUrl && (
-                    <motion.div
-                      key="preview"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      transition={{ duration: 0.4, ease: "easeInOut" }}
-                      className="space-y-6"
-                    >
-                      <div className="aspect-video bg-slate-50 rounded-xl overflow-hidden border flex items-center justify-center relative">
-                        <img 
-                          src={previewUrl} 
-                          alt="Preview" 
-                          className="max-w-full max-h-full object-contain"
-                        />
-                        {originalDimensions && (
-                          <div className="absolute bottom-3 right-3 bg-black/70 text-white text-sm px-3 py-1.5 rounded-full backdrop-blur-sm">
-                            {originalDimensions.width} × {originalDimensions.height} px
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="grid lg:grid-cols-2 gap-6">
-                        <div className="bg-slate-50 rounded-xl p-5 border">
-                          <h3 className="font-semibold text-lg text-slate-800 mb-3">File Details</h3>
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                              <span className="text-slate-500">File name:</span>
-                              <span className="font-medium text-slate-800 truncate max-w-[200px]">{selectedFile.name}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-slate-500">File size:</span>
-                              <span className="font-medium text-slate-800">{formatFileSize(selectedFile.size)}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-slate-500">File type:</span>
-                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                {selectedFile.type}
-                              </Badge>
-                            </div>
-                            {originalDimensions && (
-                              <div className="flex justify-between items-center">
-                                <span className="text-slate-500">Dimensions:</span>
-                                <span className="font-medium text-slate-800">
-                                  {originalDimensions.width} × {originalDimensions.height}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <QualityControls quality={quality} setQuality={setQuality} />
-                      </div>
-                      
-                      <ResizeControls
-                        resizeEnabled={resizeEnabled}
-                        setResizeEnabled={setResizeEnabled}
-                        resizeWidth={resizeWidth}
-                        setResizeWidth={setResizeWidth}
-                        resizeHeight={resizeHeight}
-                        setResizeHeight={setResizeHeight}
-                        maintainAspectRatio={maintainAspectRatio}
-                        setMaintainAspectRatio={setMaintainAspectRatio}
-                        originalDimensions={originalDimensions}
-                      />
-                      
-                      <div className="flex justify-between gap-4 mt-8">
-                        <Button 
-                          variant="outline"
-                          size="lg"
-                          onClick={() => setActiveTab("upload")}
-                          className="px-6"
-                        >
-                          <ArrowLeft size={18} className="mr-2" />
-                          Back
-                        </Button>
-                        <Button 
-                          onClick={handleConvert} 
-                          disabled={isLoading} 
-                          size="lg"
-                          className="bg-indigo-600 hover:bg-indigo-700 flex-1 text-white shadow-lg shadow-indigo-200 hover:shadow-xl hover:shadow-indigo-200 transition-all duration-300"
-                        >
-                          {isLoading ? (
-                            <>
-                              <span className="mr-2">Converting</span>
-                              <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            </>
-                          ) : (
-                            <>
-                              Convert to {activeImageFormat.split('-to-')[1].toUpperCase()}
-                              <ArrowRight size={18} className="ml-2" />
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </motion.div>
+                    <PreviewTab
+                      selectedFiles={selectedFiles}
+                      currentFileIndex={currentFileIndex}
+                      quality={quality}
+                      setQuality={setQuality}
+                      preserveMetadata={preserveMetadata}
+                      setPreserveMetadata={setPreserveMetadata}
+                      onConvert={handleConvert}
+                      onFileClick={setCurrentFileIndex}
+                      onRemoveFile={(index) => {
+                        const newFiles = [...selectedFiles];
+                        newFiles.splice(index, 1);
+                        setSelectedFiles(newFiles);
+                        if (currentFileIndex === index) {
+                          setCurrentFileIndex(0);
+                        } else if (currentFileIndex > index) {
+                          setCurrentFileIndex(currentFileIndex - 1);
+                        }
+                      }}
+                      onClearAll={() => {
+                        setSelectedFiles([]);
+                        setCurrentFileIndex(0);
+                      }}
+                      onBatchConvert={handleConvert}
+                      isConverting={isLoading}
+                      resizeEnabled={resizeEnabled}
+                      setResizeEnabled={setResizeEnabled}
+                      resizeWidth={resizeWidth}
+                      setResizeWidth={setResizeWidth}
+                      resizeHeight={resizeHeight}
+                      setResizeHeight={setResizeHeight}
+                      maintainAspectRatio={maintainAspectRatio}
+                      setMaintainAspectRatio={setMaintainAspectRatio}
+                      originalDimensions={originalDimensions}
+                    />
                   )}
 
                   {activeTab === "result" && (

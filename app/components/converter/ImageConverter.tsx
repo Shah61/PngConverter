@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ImageIcon, Download, Settings, FileImage, FileArchive } from "lucide-react";
 import UploadTab from "./UploadTab";
 import PreviewTab from "./PreviewTab";
-import ResultTab from "./ResultTab";
+import { ResultTab } from "./ResultTab";
 import ConversionSettings from "./ConversionSettings";
 import { isPngFile, generateDefaultFilename, formatFileSize } from "../utils/imageUtils";
 
@@ -174,6 +174,14 @@ export default function ImageConverter({ format, onFormatChange }: ImageConverte
               preserveTransparency={false}
               setPreserveTransparency={() => {}}
               onConvert={handleConvert}
+              onFileClick={handleFileClick}
+              onRemoveFile={handleRemoveFile}
+              onClearAll={() => {
+                setSelectedFiles([]);
+                setCurrentFileIndex(0);
+              }}
+              onBatchConvert={handleConvert}
+              isConverting={isLoading}
             />
           </TabsContent>
 
