@@ -78,8 +78,8 @@ export default function PngToJpgConverter() {
       setZipFile(zipFiles[0]);
       setAnalyzingZip(true);
     } else {
-      handleFileChange(files);
-      setActiveTab("preview");
+      setSelectedFiles(files);
+      setShowFileTypeDetector(true);
     }
   };
 
@@ -98,6 +98,7 @@ export default function PngToJpgConverter() {
   const handleFormatSelect = (format: string) => {
     setActiveImageFormat(`${getFileType(selectedFile)}-to-${format}`);
     setShowFileTypeDetector(false);
+    loadPreview(selectedFile);
     setActiveTab("preview");
   };
 
@@ -185,7 +186,21 @@ export default function PngToJpgConverter() {
                 </AnimatePresence>
 
                 <AnimatePresence mode="wait">
-                  {activeTab === "upload" && (
+                  {showFileTypeDetector && selectedFile ? (
+                    <motion.div
+                      key="file-type-detector"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      transition={{ duration: 0.4, ease: "easeInOut" }}
+                    >
+                      <FileTypeDetector
+                        file={selectedFile}
+                        onFormatSelect={handleFormatSelect}
+                        onCancel={() => setShowFileTypeDetector(false)}
+                      />
+                    </motion.div>
+                  ) : activeTab === "upload" && (
                     <motion.div
                       key="upload"
                       initial={{ opacity: 0, y: 20 }}
@@ -197,21 +212,15 @@ export default function PngToJpgConverter() {
                         <ZipAnalyzer 
                           zipFile={zipFile} 
                           onSelect={(files) => {
-                            handleFileChange(files);
+                            setSelectedFiles(files);
                             setAnalyzingZip(false);
                             setZipFile(null);
-                            setActiveTab("preview");
+                            setShowFileTypeDetector(true);
                           }} 
                           onCancel={() => {
                             setZipFile(null);
                             setAnalyzingZip(false);
                           }} 
-                        />
-                      ) : showFileTypeDetector && selectedFile ? (
-                        <FileTypeDetector
-                          file={selectedFile}
-                          onFormatSelect={handleFormatSelect}
-                          onCancel={() => setShowFileTypeDetector(false)}
                         />
                       ) : (
                         <div 
@@ -270,8 +279,8 @@ export default function PngToJpgConverter() {
                                     setZipFile(zipFiles[0]);
                                     setAnalyzingZip(true);
                                   } else {
-                                    handleFileChange(files);
-                                    setActiveTab("preview");
+                                    setSelectedFiles(files);
+                                    setShowFileTypeDetector(true);
                                   }
                                 }}
                                 className="hidden"

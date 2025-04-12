@@ -39,18 +39,21 @@ export const useImageConverter = () => {
   }, [previewUrl]);
 
   const loadPreview = (file: File) => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
     const objectUrl = URL.createObjectURL(file);
     setPreviewUrl(objectUrl);
     
-    if (file.type.startsWith('image/')) {
-      const img = document.createElement('img');
-      img.onload = () => {
-        setOriginalDimensions({width: img.width, height: img.height});
-        setResizeWidth(img.width);
-        setResizeHeight(img.height);
-      };
-      img.src = objectUrl;
-    }
+    // Load image dimensions
+    const img = new Image();
+    img.onload = () => {
+      setOriginalDimensions({
+        width: img.width,
+        height: img.height
+      });
+    };
+    img.src = objectUrl;
     
     setCustomFilename(generateDefaultFilename(file.name));
   };
@@ -64,8 +67,11 @@ export const useImageConverter = () => {
     
     setSelectedFiles(files);
     setCurrentFileIndex(0);
-    if (files.length > 0) {
-      loadPreview(files[0]);
+  };
+
+  const handleFormatSelect = (format: string) => {
+    if (selectedFiles.length > 0) {
+      loadPreview(selectedFiles[0]);
     }
   };
 
@@ -189,6 +195,7 @@ export const useImageConverter = () => {
     setCustomFilename,
     setPreserveMetadata,
     handleFileChange,
+    handleFormatSelect,
     handleConvert,
     handleDownload,
     loadPreview,
