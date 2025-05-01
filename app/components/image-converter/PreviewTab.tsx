@@ -32,6 +32,7 @@ interface PreviewTabProps {
   maintainAspectRatio: boolean;
   setMaintainAspectRatio: (maintain: boolean) => void;
   originalDimensions: { width: number; height: number } | null;
+  activeImageFormat: string;
 }
 
 export default function PreviewTab({
@@ -56,6 +57,7 @@ export default function PreviewTab({
   maintainAspectRatio,
   setMaintainAspectRatio,
   originalDimensions,
+  activeImageFormat,
 }: PreviewTabProps) {
   const currentFile = selectedFiles[currentFileIndex];
   const [previewUrl, setPreviewUrl] = React.useState<string>("");
@@ -85,6 +87,13 @@ export default function PreviewTab({
       setResizeWidth(Math.round(height * aspectRatio));
     }
   };
+
+  // Get the target format from the activeImageFormat string (format is like "png-to-jpg")
+  const targetFormat = React.useMemo(() => {
+    if (!activeImageFormat) return "JPG";
+    const parts = activeImageFormat.split('-to-');
+    return parts.length > 1 ? parts[1].toUpperCase() : "JPG";
+  }, [activeImageFormat]);
 
   return (
     <div className="p-8">
@@ -325,7 +334,7 @@ export default function PreviewTab({
                   Converting...
                 </>
               ) : (
-                "Convert to JPG"
+                `Convert to ${targetFormat}`
               )}
             </Button>
           </div>

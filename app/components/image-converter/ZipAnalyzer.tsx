@@ -1,3 +1,4 @@
+"use client";
 import React, { useState, useEffect } from 'react';
 import { FileArchive, CheckCircle, XCircle, FileImage, FileText, File } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';

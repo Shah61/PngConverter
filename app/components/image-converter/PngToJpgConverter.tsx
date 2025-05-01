@@ -9,17 +9,26 @@ import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 import { Input } from "@/app/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
-import MainLayout from "./layout/MainLayout";
-import ImageConversionOptions from "./converter/ImageConversionOptions";
-import UploadTab from "./converter/UploadTab";
-import PreviewTab from "./converter/PreviewTab";
-import { ResultTab } from "./converter/ResultTab";
-import ZipAnalyzer from "./converter/ZipAnalyzer";
-import { ResizeControls } from "./converter/ResizeControls";
-import { QualityControls } from "./converter/QualityControls";
-import { useImageConverter } from "./hooks/useImageConverter";
-import { formatFileSize } from "./utils/imageUtils";
-import { FileTypeDetector } from "./converter/FileTypeDetector";
+import MainLayout from "../layout/MainLayout";
+import ImageConversionOptions from "./ImageConversionOptions";
+import UploadTab from "./UploadTab";
+import PreviewTab from "./PreviewTab";
+import { ResultTab } from "./ResultTab";
+import ZipAnalyzer from "./ZipAnalyzer";
+import { ResizeControls } from "./ResizeControls";
+import { QualityControls } from "./QualityControls";
+import { useImageConverter } from "../hooks/useImageConverter";
+import { useFileTypeValidation } from "../hooks/useFileTypeValidation";
+import { formatFileSize } from "../utils/imageUtils";
+import { FileTypeDetector } from "./FileTypeDetector";
+import { WrongFileTypeAlert } from "../utils/WrongFileTypeAlert";
+import { FileTypeLabel } from "../utils/FileTypeLabel";
+import { 
+  detectFileConverterType, 
+  isFileValidForConverter, 
+  filterFilesByConverterType, 
+  ConverterType 
+} from "../utils/fileTypeUtils";
 
 export default function PngToJpgConverter() {
   const {
@@ -55,6 +64,12 @@ export default function PngToJpgConverter() {
     setSelectedFiles
   } = useImageConverter();
 
+  const { 
+    wrongFileTypeData, 
+    validateFiles, 
+    dismissWrongFileTypeAlert 
+  } = useFileTypeValidation();
+
   const [activeTab, setActiveTab] = React.useState("upload");
   const [showBeforeAfter, setShowBeforeAfter] = React.useState(false);
   const [isDragOver, setIsDragOver] = React.useState(false);
@@ -63,6 +78,7 @@ export default function PngToJpgConverter() {
   const [activeConversionType, setActiveConversionType] = React.useState('image');
   const [activeImageFormat, setActiveImageFormat] = React.useState('png-to-jpg');
   const [showFileTypeDetector, setShowFileTypeDetector] = React.useState(false);
+  const [dragValid, setDragValid] = React.useState(true);
 
   const selectedFile = selectedFiles[currentFileIndex] || null;
 
@@ -70,29 +86,86 @@ export default function PngToJpgConverter() {
     event.preventDefault();
     event.stopPropagation();
     setIsDragOver(false);
+    setError(null);
     
     const files = Array.from(event.dataTransfer.files || []);
-    const zipFiles = files.filter(file => file.name.toLowerCase().endsWith('.zip'));
     
+    // If no files dropped, show an error
+    if (files.length === 0) {
+      setError("No files were dropped. Please try again.");
+      return;
+    }
+    
+    // First, handle zip files specially
+    const zipFiles = files.filter(file => file.name.toLowerCase().endsWith('.zip'));
     if (zipFiles.length > 0) {
       setZipFile(zipFiles[0]);
       setAnalyzingZip(true);
+      return;
+    }
+    
+    // Validate files against the current converter type
+    const { validFiles, invalidFiles, hasInvalidFiles } = validateFiles(files, 'image');
+    
+    // Set valid files if we have any
+    if (validFiles.length > 0) {
+      setSelectedFiles(validFiles);
+      
+      // Only show file type detector if we don't have any invalid files
+      if (!hasInvalidFiles) {
+        setShowFileTypeDetector(true);
+      }
+    } else if (invalidFiles.length > 0) {
+      // All files were invalid, but we don't have a wrongFileTypeData, show an error
+      if (!wrongFileTypeData) {
+        const fileTypes = Array.from(new Set(invalidFiles.map(file => 
+          file.type || file.name.split('.').pop()?.toUpperCase() || 'Unknown'
+        ))).join(', ');
+        
+        setError(`Cannot accept these file types: ${fileTypes}. Please upload image files (JPG, PNG, etc).`);
+      }
     } else {
-      setSelectedFiles(files);
-      setShowFileTypeDetector(true);
+      setError("Please upload valid image files (JPG, PNG, etc).");
     }
   };
 
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
+    
+    // Check if any of the dragged files are valid for this converter
+    const items = Array.from(event.dataTransfer.items || []);
+    const hasValidItem = items.some(item => {
+      // Check for image MIME types
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        return true;
+      }
+      // Check for ZIP files (special case)
+      if (item.kind === 'file' && 
+          ((item.type === 'application/zip') || 
+           (item.type === 'application/x-zip-compressed'))) {
+        return true;
+      }
+      return false;
+    });
+
     setIsDragOver(true);
+    
+    // If we can detect a file type during drag and it's invalid, show as invalid
+    if (items.length > 0 && !hasValidItem) {
+      event.dataTransfer.dropEffect = 'none'; // Show "not allowed" cursor
+      setDragValid(false);
+    } else {
+      event.dataTransfer.dropEffect = 'copy'; // Show "copy" cursor
+      setDragValid(true);
+    }
   };
 
   const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
     setIsDragOver(false);
+    setDragValid(true);
   };
 
   const handleFormatSelect = (format: string) => {
@@ -128,6 +201,54 @@ export default function PngToJpgConverter() {
       opacity: 1,
       transition: { type: "spring", stiffness: 300, damping: 24 }
     }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setError(null);
+    
+    const files = Array.from(e.target.files || []);
+    
+    // If no files selected (user canceled dialog), do nothing
+    if (files.length === 0) {
+      return;
+    }
+    
+    // First check for zip files
+    const zipFiles = files.filter(file => file.name.toLowerCase().endsWith('.zip'));
+    if (zipFiles.length > 0) {
+      setZipFile(zipFiles[0]);
+      setAnalyzingZip(true);
+      return;
+    }
+    
+    // Validate files against the current converter type
+    const { validFiles, invalidFiles, hasInvalidFiles } = validateFiles(files, 'image');
+    
+    // Set valid files if we have any
+    if (validFiles.length > 0) {
+      setSelectedFiles(validFiles);
+      
+      // Only show file type detector if we don't have any invalid files
+      if (!hasInvalidFiles) {
+        setShowFileTypeDetector(true);
+      } 
+    } else if (invalidFiles.length > 0) {
+      // All files were invalid, but we don't have a wrongFileTypeData, show an error  
+      if (!wrongFileTypeData) {
+        const fileTypes = Array.from(new Set(invalidFiles.map(file => 
+          file.type || file.name.split('.').pop()?.toUpperCase() || 'Unknown'
+        ))).join(', ');
+        
+        setError(`Cannot accept these file types: ${fileTypes}. Please upload image files (JPG, PNG, etc).`);
+      }
+    } else {
+      setError("Please upload valid image files (JPG, PNG, etc).");
+    }
+  };
+
+  const handleSwitchConverter = (converterType: string) => {
+    // Convert string to ConverterType and set it
+    setActiveConversionType(converterType as ConverterType);
   };
 
   return (
@@ -183,6 +304,24 @@ export default function PngToJpgConverter() {
                       </Alert>
                     </motion.div>
                   )}
+                  
+                  {wrongFileTypeData && (
+                    <WrongFileTypeAlert
+                      fileType="image"
+                      correctConverterType={wrongFileTypeData.correctConverterType}
+                      onDismiss={() => {
+                        dismissWrongFileTypeAlert();
+                        // If we have valid files, show the file type detector
+                        if (selectedFiles.length > 0) {
+                          setShowFileTypeDetector(true);
+                        }
+                      }}
+                      onSwitchConverter={(converterType) => {
+                        dismissWrongFileTypeAlert();
+                        setActiveConversionType(converterType);
+                      }}
+                    />
+                  )}
                 </AnimatePresence>
 
                 <AnimatePresence mode="wait">
@@ -226,13 +365,27 @@ export default function PngToJpgConverter() {
                         <div 
                           className={`border-2 border-dashed rounded-xl p-10 text-center transition-all duration-300 ${
                             isDragOver 
-                              ? 'border-indigo-400 bg-indigo-50 scale-[1.01]' 
+                              ? dragValid
+                                ? 'border-indigo-400 bg-indigo-50 scale-[1.01]' 
+                                : 'border-red-400 bg-red-50 scale-[1.01]'
                               : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
                           }`}
                           onDrop={handleDrop}
                           onDragOver={handleDragOver}
                           onDragLeave={handleDragLeave}
                         >
+                          {isDragOver && !dragValid && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-red-50 bg-opacity-90 z-10 rounded-xl">
+                              <div className="bg-white p-4 rounded-lg shadow-lg text-center max-w-md">
+                                <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+                                <h3 className="text-lg font-semibold text-red-700 mb-2">Unsupported File Type</h3>
+                                <p className="text-red-600">
+                                  This file can't be converted in the image converter.
+                                  Please use image files (JPG, PNG, etc).
+                                </p>
+                              </div>
+                            </div>
+                          )}
                           <motion.div 
                             className="flex flex-col items-center justify-center space-y-6"
                             variants={containerVariants}
@@ -271,31 +424,15 @@ export default function PngToJpgConverter() {
                               <input
                                 id="file-input"
                                 type="file"
-                                onChange={(e) => {
-                                  const files = Array.from(e.target.files || []);
-                                  const zipFiles = files.filter(file => file.name.toLowerCase().endsWith('.zip'));
-                                  
-                                  if (zipFiles.length > 0) {
-                                    setZipFile(zipFiles[0]);
-                                    setAnalyzingZip(true);
-                                  } else {
-                                    setSelectedFiles(files);
-                                    setShowFileTypeDetector(true);
-                                  }
-                                }}
+                                onChange={handleFileInputChange}
                                 className="hidden"
-                                accept="*"
+                                accept="image/jpeg,image/png,image/gif,image/webp,image/bmp,image/tiff,.jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.svg,.ico,.heic,.heif,.zip"
                                 multiple={true}
                               />
                             </motion.div>
                             
-                            <motion.div variants={itemVariants} className="flex gap-2 items-center">
-                              <Badge variant="outline" className="px-3 py-1.5 text-sm bg-white">
-                                All file types supported
-                              </Badge>
-                              <Badge variant="outline" className="px-3 py-1.5 text-sm bg-white">
-                                Batch processing supported
-                              </Badge>
+                            <motion.div variants={itemVariants}>
+                              <FileTypeLabel converterType="image" />
                             </motion.div>
                           </motion.div>
                         </div>
@@ -338,6 +475,7 @@ export default function PngToJpgConverter() {
                       maintainAspectRatio={maintainAspectRatio}
                       setMaintainAspectRatio={setMaintainAspectRatio}
                       originalDimensions={originalDimensions}
+                      activeImageFormat={activeImageFormat}
                     />
                   )}
 

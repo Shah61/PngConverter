@@ -1,9 +1,9 @@
-import PngToJpgConverter from "./components/PngToJpgConverter";
+import ConvertersUI from "./components/ConvertersUI";
 
 export default function Home() {
   return (
     <main>
-      <PngToJpgConverter />
+      <ConvertersUI />
     </main>
   );
 }
